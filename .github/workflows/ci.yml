@@ -32,16 +32,13 @@ jobs:
       AUTH_SECRET: solo-per-la-ci-non-usare-in-produzione
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      # "npm install" e non "npm ci": il package-lock.json generato su Windows non
-      # contiene alcune dipendenze opzionali che servono solo su Linux, e "npm ci"
-      # si fermerebbe (bug noto di npm). Le versioni restano quelle del lock.
       - name: Installa le dipendenze
         run: npm install --no-audit --no-fund
 
@@ -59,8 +56,6 @@ jobs:
       - name: Test
         run: npm test
 
-      # La build crea next-env.d.ts e i tipi delle route in .next/types,
-      # che servono al controllo dei tipi: per questo viene prima.
       - name: Build
         run: npm run build
 
