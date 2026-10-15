@@ -12,10 +12,7 @@ il modello dei dati segue il modo in cui il lavoro si svolge davvero in negozio.
 > Next.js 16 (App Router, Server Actions), TypeScript, Prisma and PostgreSQL. Domain names in the code are in
 > Italian on purpose, to match the language of the business.
 
-<!--
-Screenshot: aggiungi qui 2-3 immagini fatte con i dati di esempio (npm run db:seed), es.
-![Pagina Oggi](docs/screenshot/oggi.png)
--->
+![La pagina "Oggi": ordini in ritardo, da consegnare oggi o domani e pronti da ritirare](docs/screenshot/oggi.png)
 
 ## Funzionalità
 
@@ -31,6 +28,24 @@ Screenshot: aggiungi qui 2-3 immagini fatte con i dati di esempio (npm run db:se
   scala i pezzi quando passa "in lavorazione".
 - **Utenti**: accesso con email e password, nuovi colleghi tramite **codice invito** monouso con scadenza,
   password temporanee e uscita forzata da tutti i dispositivi.
+
+## Screenshot
+
+_Tutti i dati nelle immagini sono inventati._
+
+**Dettaglio di un ordine**: a che punto è ogni prodotto, pezzi pronti, pezzi presi dal magazzino, ritiri e pagamenti.
+
+![Dettaglio di un ordine con due prodotti in lavorazione](docs/screenshot/ordine.png)
+
+**Magazzino**: giacenze per colore e taglia e ultimi movimenti, collegati agli ordini che hanno usato i pezzi.
+
+![Scheda di un articolo del magazzino con la tabella colori e taglie](docs/screenshot/magazzino.png)
+
+**Da telefono**: la stessa app, con il menu in basso.
+
+<p align="center">
+  <img src="docs/screenshot/telefono.png" alt="La pagina Oggi e il dettaglio di un ordine da telefono" width="560">
+</p>
 
 ## Tecnologie
 

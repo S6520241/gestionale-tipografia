@@ -99,7 +99,7 @@ export default async function OggiPage() {
   return (
     <div className="grid gap-8">
       <div>
-        <p className="text-base font-semibold text-primary capitalize">{oggi}</p>
+        <p className="text-base font-semibold text-primary first-letter:uppercase">{oggi}</p>
         <h1 className="text-3xl font-extrabold tracking-tight">Ciao{nome ? `, ${nome}` : ""}!</h1>
       </div>
 
