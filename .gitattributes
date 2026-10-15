@@ -1,0 +1,6 @@
+# A capo sempre LF nel repository, anche se si lavora su Windows.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

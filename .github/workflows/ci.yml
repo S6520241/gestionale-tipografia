@@ -1,0 +1,68 @@
+# Controlli automatici a ogni push e pull request:
+# lint, tipi TypeScript, test (anche quelli sul vero PostgreSQL) e build.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gestionale
+          POSTGRES_PASSWORD: gestionale
+          POSTGRES_DB: gestionale
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gestionale"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://gestionale:gestionale@localhost:5432/gestionale?schema=public
+      TEST_DATABASE_URL: postgresql://gestionale:gestionale@localhost:5432/gestionale_test?schema=public
+      AUTH_SECRET: solo-per-la-ci-non-usare-in-produzione
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # "npm install" e non "npm ci": il package-lock.json generato su Windows non
+      # contiene alcune dipendenze opzionali che servono solo su Linux, e "npm ci"
+      # si fermerebbe (bug noto di npm). Le versioni restano quelle del lock.
+      - name: Installa le dipendenze
+        run: npm install --no-audit --no-fund
+
+      - name: Prepara i database
+        run: |
+          npx prisma migrate deploy
+          npm run test:db
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Controllo formattazione
+        run: npx prettier --check src tests scripts
+
+      - name: Test
+        run: npm test
+
+      # La build crea next-env.d.ts e i tipi delle route in .next/types,
+      # che servono al controllo dei tipi: per questo viene prima.
+      - name: Build
+        run: npm run build
+
+      - name: Controllo dei tipi
+        run: npm run typecheck

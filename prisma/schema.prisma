@@ -1,0 +1,507 @@
+// ============================================================
+// Gestionale per tipografia / stampa / ricamo - schema del database
+// ============================================================
+// Principi:
+//  - id interni (cuid) separati dai numeri "leggibili" (es. numero ordine)
+//  - niente DELETE sui dati di business: si usa "archiviato" / "annullata"
+//  - lo stato dell'ordine NON e' salvato: si calcola dalle righe
+//  - i soldi sono Decimal, mai Float (errori di arrotondamento)
+//  - quantita' pronte/consegnate/totali sono l'unica fonte di verita':
+//    PRONTA e CONSEGNATA si CALCOLANO, non si salvano
+//  - Cascade solo sui "pezzi" di una riga (varianti, applicazioni),
+//    che si modificano insieme alla riga mentre la si compila
+//  - Integrita' che il DB non controlla (stesso cliente / stesso ordine)
+//    va verificata nel service, con test
+//  - Vincoli CHECK (quantita' > 0 ecc.): Prisma non li esprime, vanno
+//    aggiunti a mano nella migrazione SQL (in fondo a migrations/*_init)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// UTENTI
+// Tutti gli utenti hanno gli stessi permessi, quindi per ora nessun ruolo.
+// Il modello si chiama User e ha i campi che l'adapter Prisma di
+// Auth.js si aspetta (name, email, emailVerified, image). In DB la tabella
+// resta "utente" e la colonna "nome".
+// Login MVP: email + password (provider Credentials di Auth.js) con sessione
+// JWT in un cookie, quindi Account/Session/VerificationToken NON servono.
+// Si aggiungeranno solo se un giorno si usera' un login "Accedi con Google".
+// ------------------------------------------------------------
+model User {
+  id            String    @id @default(cuid())
+  name          String?   @map("nome")
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  // Hash bcrypt della password (login con email + password, vedi src/auth.ts).
+  // Mai salvare la password in chiaro. Nullable: in futuro si potra' entrare
+  // anche con altri provider (es. Google) senza password.
+  passwordHash  String?
+  attivo        Boolean   @default(true)
+  creatoIl      DateTime  @default(now())
+  // Password temporanea data da un collega: al prossimo accesso va cambiata.
+  devoCambiarePassword Boolean @default(false)
+  // Gli accessi fatti PRIMA di questa data non valgono piu' (cambio password,
+  // password temporanea, disattivazione): si esce da tutti i dispositivi.
+  sessioniValideDal    DateTime?
+
+  ordiniCreati     Ordine[]
+  cambiStato       StoricoStatoRiga[]
+  bozzeConfermate  Bozza[]              @relation("BozzaConfermataDa")
+  versioniCaricate VersioneGrafica[]
+  consegne         Consegna[]
+  pagamenti        Pagamento[]
+  movimenti        MovimentoMagazzino[]
+  codiciCreati     CodiceInvito[]       @relation("CodiciCreati")
+  codiceUsato      CodiceInvito?        @relation("CodiceUsato")
+
+  @@map("utente")
+}
+
+/// Codice per registrarsi: lo crea un utente dalla pagina Utenti e lo da' a chi deve entrare.
+/// Vale una volta sola e scade dopo 7 giorni (vedi src/utenti/database.ts).
+model CodiceInvito {
+  id          String    @id @default(cuid())
+  codice      String    @unique // 8 caratteri senza quelli che si confondono (0/O, 1/I/L)
+  creatoIl    DateTime  @default(now())
+  scadeIl     DateTime
+  creatoDaId  String
+  creatoDa    User      @relation("CodiciCreati", fields: [creatoDaId], references: [id])
+  usatoIl     DateTime?
+  usatoDaId   String?   @unique
+  usatoDa     User?     @relation("CodiceUsato", fields: [usatoDaId], references: [id])
+  annullatoIl DateTime?
+}
+
+// ------------------------------------------------------------
+// CLIENTI
+// Pochi campi obbligatori: meglio un cliente incompleto che nessun cliente.
+// (Indirizzo, PEC, codice SDI arriveranno con la fatturazione.)
+// ------------------------------------------------------------
+model Cliente {
+  id            String   @id @default(cuid())
+  nome          String
+  telefono      String?
+  email         String?
+  partitaIva    String?
+  codiceFiscale String?
+  note          String?
+  archiviato    Boolean  @default(false)
+  creatoIl      DateTime @default(now())
+  modificatoIl  DateTime @updatedAt
+
+  ordini   Ordine[]
+  grafiche Grafica[]
+
+  @@index([nome])
+}
+
+// ------------------------------------------------------------
+// ORDINI
+// Numero = anno + progressivo, salvati come Int separati:
+// si ordinano e si cercano facilmente. La stringa "2026-0001" si genera
+// in TS solo per la visualizzazione (una sola fonte di verita').
+// Niente campo "annullato": annullare un ordine = mettere tutte le
+// righe ANNULLATA nella stessa transazione, cosi' lo stato calcolato non
+// puo' contraddirsi. "archiviato" serve per nascondere ordini di prova/errati.
+// dataConsegna e' un GIORNO (@db.Date): niente problemi di fuso orario.
+// ------------------------------------------------------------
+model Ordine {
+  id            String    @id @default(cuid())
+  anno          Int
+  progressivo   Int
+  clienteId     String
+  cliente       Cliente   @relation(fields: [clienteId], references: [id])
+  dataRicezione DateTime  @default(now())
+  dataConsegna  DateTime? @db.Date // la scadenza: il campo piu' importante
+  urgente       Boolean   @default(false)
+  archiviato    Boolean   @default(false)
+  note          String?
+  creatoDaId    String
+  creatoDa      User      @relation(fields: [creatoDaId], references: [id])
+  creatoIl      DateTime  @default(now())
+  modificatoIl  DateTime  @updatedAt
+
+  righe     RigaOrdine[]
+  consegne  Consegna[]
+  pagamenti Pagamento[]
+
+  @@unique([anno, progressivo])
+  @@index([clienteId])
+  @@index([dataConsegna])
+  @@index([creatoDaId])
+}
+
+// Contatore annuale per generare il progressivo.
+// La riga dell'anno nuovo non esiste il 1 gennaio: usare un upsert
+// atomico, dentro la transazione che crea l'ordine:
+//   INSERT INTO "Contatore" (anno, ultimo) VALUES ($1, 1)
+//   ON CONFLICT (anno) DO UPDATE SET ultimo = "Contatore".ultimo + 1
+//   RETURNING ultimo;
+// Test consigliato: 20 ordini creati in parallelo -> progressivi 1..20.
+model Contatore {
+  anno   Int @id
+  ultimo Int @default(0)
+}
+
+// ------------------------------------------------------------
+// RIGA ORDINE = "cosa produco" (un prodotto)
+// stato = solo i passaggi decisi da una persona.
+// Lo stato MOSTRATO si calcola in TS:
+//   ANNULLATA                    se stato = ANNULLATA
+//   CONSEGNATA                   se somma ConsegnaRiga >= quantita' totale
+//   PRONTA                       se quantitaPronta >= quantita' totale
+//   altrimenti                   stato
+// quantitaPronta: per il "pronto a meta'" (30 su 50).
+// La quantita' totale NON e' salvata: e' la somma di RigaVariante.quantita.
+// Prezzo facoltativo: totale riga = somma varianti * prezzoUnitario.
+// Si puo' cancellare davvero solo una riga appena inserita per
+// errore: se ha bozze, storico o consegne il DB lo impedisce (Restrict),
+// e allora si usa ANNULLATA.
+// ------------------------------------------------------------
+model RigaOrdine {
+  id             String       @id @default(cuid())
+  ordineId       String
+  ordine         Ordine       @relation(fields: [ordineId], references: [id])
+  posizione      Int          @default(0) // ordine di visualizzazione nell'ordine
+  descrizione    String // es. "Magliette cotone", "Adesivi 10x10"
+  tipo           TipoProdotto @default(ABBIGLIAMENTO)
+  stato          StatoRiga    @default(DA_FARE)
+  quantitaPronta Int          @default(0) // 0..quantita' totale (CHECK >= 0, max validato in codice)
+  prezzoUnitario Decimal?     @db.Decimal(10, 2) // facoltativo, IVA esclusa
+  note           String?
+  creatoIl       DateTime     @default(now())
+  modificatoIl   DateTime     @updatedAt
+  // Articolo del magazzino da cui si prendono i pezzi (facoltativo: si puo' sempre
+  // scrivere un prodotto a mano, es. adesivi fatti su misura).
+  articoloId     String?
+  articolo       Articolo?    @relation(fields: [articoloId], references: [id])
+
+  varianti           RigaVariante[]
+  applicazioni       Applicazione[]
+  bozze              Bozza[]
+  storicoStati       StoricoStatoRiga[]
+  consegne           ConsegnaRiga[]
+  movimentiMagazzino MovimentoMagazzino[]
+
+  @@index([ordineId])
+  @@index([stato])
+  @@index([articoloId])
+}
+
+enum TipoProdotto {
+  ABBIGLIAMENTO
+  ADESIVI
+  PANNELLI
+  GADGET
+  ALTRO // valvola di sicurezza: l'ordine va sempre inseribile
+}
+
+// Flusso reale: ordine preso -> bozza inviata -> bozza confermata ->
+// in lavorazione -> (pronta -> consegnata: calcolati dalle quantita').
+// Transizioni libere: la conferma puo' essere immediata.
+// PRONTA e CONSEGNATA tolti dall'enum: sono fatti misurabili.
+enum StatoRiga {
+  DA_FARE // "ordine preso"
+  BOZZA_INVIATA
+  BOZZA_CONFERMATA
+  IN_LAVORAZIONE
+  ANNULLATA
+}
+
+// ------------------------------------------------------------
+// VARIANTI: distribuzione taglia/colore (es. Nero M x20, Bianco L x10)
+// Per adesivi/pannelli: una sola variante con taglia e colore vuoti.
+// colore/taglia NON nullable, default "": in Postgres due NULL non
+// sono uguali e l'unique non bloccherebbe due varianti vuote identiche.
+// ------------------------------------------------------------
+model RigaVariante {
+  id       String     @id @default(cuid())
+  rigaId   String
+  riga     RigaOrdine @relation(fields: [rigaId], references: [id], onDelete: Cascade)
+  colore   String     @default("")
+  taglia   String     @default("")
+  quantita Int // CHECK > 0
+
+  @@unique([rigaId, colore, taglia])
+}
+
+// ------------------------------------------------------------
+// APPLICAZIONE = "cosa ci faccio sopra": stampa o ricamo in una posizione.
+// Una riga puo' avere piu' applicazioni (stampa cuore + ricamo spalle).
+// parametri: JSON validato con Zod (discriminated union su tecnica)
+//   STAMPA: { colori: string[] }
+//   RICAMO: { coloriFili: string[], numeroPunti?: number }
+// versioneGrafica deve appartenere allo stesso cliente dell'ordine:
+// controllo nel service.
+// ------------------------------------------------------------
+model Applicazione {
+  id                String                 @id @default(cuid())
+  rigaId            String
+  riga              RigaOrdine             @relation(fields: [rigaId], references: [id], onDelete: Cascade)
+  tecnica           Tecnica
+  posizione         PosizioneApplicazione? // vuota per adesivi/pannelli
+  versioneGraficaId String?
+  versioneGrafica   VersioneGrafica?       @relation(fields: [versioneGraficaId], references: [id])
+  parametri         Json?
+  note              String?
+
+  @@index([rigaId])
+  @@index([tecnica])
+  @@index([versioneGraficaId]) // "dove ho usato questo logo?"
+}
+
+enum Tecnica {
+  STAMPA
+  RICAMO
+  ALTRO
+}
+
+enum PosizioneApplicazione {
+  CUORE
+  SPALLE
+  MANICA
+  ALTRO
+}
+
+// ------------------------------------------------------------
+// BOZZA: una per prodotto (riga). Puo' essere confermata subito
+// (guardata insieme al cliente) o in seguito.
+// Regola: la Bozza e' la fonte di verita' dell'approvazione PER
+// QUELL'ORDINE. Confermare = nella stessa transazione impostare
+// confermataIl/confermataDa e portare la riga a BOZZA_CONFERMATA (se era
+// prima). VersioneGrafica.APPROVATA significa invece "file approvato dal
+// cliente in generale", riusabile in ordini futuri.
+// versioneGrafica deve essere dello stesso cliente: controllo nel service.
+// ------------------------------------------------------------
+model Bozza {
+  id                String            @id @default(cuid())
+  rigaId            String
+  riga              RigaOrdine        @relation(fields: [rigaId], references: [id])
+  versioneGraficaId String?
+  versioneGrafica   VersioneGrafica?  @relation(fields: [versioneGraficaId], references: [id])
+  inviataIl         DateTime? // vuota se mostrata solo in sede
+  confermataIl      DateTime?
+  modalita          ModalitaConferma?
+  confermataDaId    String? // chi del negozio l'ha registrata
+  confermataDa      User?             @relation("BozzaConfermataDa", fields: [confermataDaId], references: [id])
+  note              String? // modifiche richieste dal cliente
+  creataIl          DateTime          @default(now())
+
+  @@index([rigaId])
+  @@index([versioneGraficaId])
+  @@index([confermataDaId])
+}
+
+enum ModalitaConferma {
+  IN_SEDE // vista insieme al cliente
+  A_DISTANZA // confermata per messaggio/email
+}
+
+// ------------------------------------------------------------
+// STORICO STATI (per riga): chi ha cambiato cosa e quando.
+// ------------------------------------------------------------
+model StoricoStatoRiga {
+  id       String     @id @default(cuid())
+  rigaId   String
+  riga     RigaOrdine @relation(fields: [rigaId], references: [id])
+  da       StatoRiga?
+  a        StatoRiga
+  utenteId String
+  utente   User       @relation(fields: [utenteId], references: [id])
+  data     DateTime   @default(now())
+
+  @@index([rigaId])
+  @@index([utenteId])
+}
+
+// ------------------------------------------------------------
+// CONSEGNE (anche parziali).
+// Quantita' consegnata di una riga = somma di ConsegnaRiga.quantita
+// delle consegne NON annullate (calcolata, mai salvata).
+// Una consegna registrata per errore non si cancella: si annulla.
+// Le righe di ConsegnaRiga devono appartenere allo stesso ordine
+// della Consegna: controllo nel service.
+// ------------------------------------------------------------
+model Consegna {
+  id        String   @id @default(cuid())
+  ordineId  String
+  ordine    Ordine   @relation(fields: [ordineId], references: [id])
+  data      DateTime @default(now())
+  utenteId  String
+  utente    User     @relation(fields: [utenteId], references: [id])
+  annullata Boolean  @default(false)
+  note      String?
+
+  righe ConsegnaRiga[]
+
+  @@index([ordineId])
+  @@index([utenteId])
+}
+
+model ConsegnaRiga {
+  id         String     @id @default(cuid())
+  consegnaId String
+  consegna   Consegna   @relation(fields: [consegnaId], references: [id])
+  rigaId     String
+  riga       RigaOrdine @relation(fields: [rigaId], references: [id])
+  quantita   Int // CHECK > 0
+
+  @@unique([consegnaId, rigaId])
+  @@index([rigaId]) // somma consegnato per riga
+}
+
+// ------------------------------------------------------------
+// GRAFICHE: archivio per cliente, riutilizzabile su piu' ordini.
+// Grafica = il "concetto" (es. "Logo Bar Mario"), VersioneGrafica = i file.
+// File nello storage a oggetti (S3 o compatibile): nel DB solo le chiavi.
+// ------------------------------------------------------------
+model Grafica {
+  id         String   @id @default(cuid())
+  clienteId  String
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  nome       String
+  note       String?
+  archiviata Boolean  @default(false)
+  creataIl   DateTime @default(now())
+
+  versioni VersioneGrafica[]
+
+  @@index([clienteId])
+}
+
+// numeroVersione = max + 1 calcolato in transazione; se due upload
+// simultanei collidono, l'unique lancia P2002: ritentare una volta.
+model VersioneGrafica {
+  id              String        @id @default(cuid())
+  graficaId       String
+  grafica         Grafica       @relation(fields: [graficaId], references: [id])
+  numeroVersione  Int // 1, 2, 3...
+  stato           StatoVersione @default(RICEVUTA)
+  tipoFile        TipoFile      @default(ALTRO)
+  nomeFile        String // nome originale del file
+  mimeType        String?
+  dimensioneByte  Int? // Int: BigInt non si serializza in JSON
+  chiaveOriginale String // chiave nello storage
+  chiaveAnteprima String? // anteprima/miniatura (facoltativa)
+  larghezzaPx     Int? // solo raster
+  altezzaPx       Int?
+  dpi             Int?
+  note            String? // es. "tracciare il logo", "testo in curve"
+  caricataDaId    String
+  caricataDa      User          @relation(fields: [caricataDaId], references: [id])
+  caricataIl      DateTime      @default(now())
+
+  applicazioni Applicazione[]
+  bozze        Bozza[]
+
+  @@unique([graficaId, numeroVersione])
+  @@index([caricataDaId])
+}
+
+enum StatoVersione {
+  RICEVUTA // inviata dal cliente, cosi' com'e'
+  DA_SISTEMARE
+  PRONTA // sistemata da noi
+  APPROVATA // approvata dal cliente in generale (vedi Bozza)
+  SCARTATA
+}
+
+enum TipoFile {
+  VETTORIALE // cdr, svg, ai, eps, pdf vettoriale
+  RASTER // png, jpg, tiff
+  ALTRO
+}
+
+// Soldi ricevuti dal cliente per un ordine. Lo stato "pagato / acconto / non pagato"
+// NON e' salvato: si calcola da questi movimenti (vedi src/ordini/calcoli.ts).
+//  - ACCONTO: soldi lasciati prima, importo obbligatorio.
+//  - SALDO:   "ha pagato tutto". L'importo puo' mancare se l'ordine non ha prezzi.
+// Un pagamento sbagliato non si cancella: si annulla (resta nello storico).
+model Pagamento {
+  id        String        @id @default(cuid())
+  ordineId  String
+  ordine    Ordine        @relation(fields: [ordineId], references: [id])
+  tipo      TipoPagamento
+  importo   Decimal?      @db.Decimal(10, 2) // IVA inclusa: quello che il cliente ha dato
+  data      DateTime      @default(now())
+  note      String?
+  utenteId  String
+  utente    User          @relation(fields: [utenteId], references: [id])
+  annullato Boolean       @default(false)
+
+  @@index([ordineId])
+  @@index([utenteId])
+}
+
+enum TipoPagamento {
+  ACCONTO
+  SALDO
+}
+
+// ------------------------------------------------------------
+// MAGAZZINO
+// La giacenza NON e' una colonna: e' la somma dei movimenti di ogni variante
+// (carico iniziale, merce arrivata, correzioni, pezzi usati dagli ordini).
+// Cosi' si vede sempre perche' un numero e' quello che e'.
+// ------------------------------------------------------------
+
+model Articolo {
+  id         String       @id @default(cuid())
+  nome       String // es. "T-shirt cotone", "Penne a scatto"
+  categoria  String? // es. "T-shirt e polo", "Gadget"
+  tipo       TipoProdotto @default(ABBIGLIAMENTO)
+  note       String?
+  archiviato Boolean      @default(false)
+  creatoIl   DateTime     @default(now())
+
+  varianti VarianteArticolo[]
+  righe    RigaOrdine[]
+
+  @@index([nome])
+}
+
+model VarianteArticolo {
+  id         String   @id @default(cuid())
+  articoloId String
+  articolo   Articolo @relation(fields: [articoloId], references: [id], onDelete: Cascade)
+  colore     String   @default("") // "" = senza colore
+  taglia     String   @default("") // "" = senza taglia (gadget)
+
+  movimenti MovimentoMagazzino[]
+
+  @@unique([articoloId, colore, taglia])
+}
+
+model MovimentoMagazzino {
+  id         String           @id @default(cuid())
+  varianteId String
+  variante   VarianteArticolo @relation(fields: [varianteId], references: [id], onDelete: Cascade)
+  quantita   Int // + entra in magazzino, - esce
+  causale    CausaleMovimento
+  // Per LAVORAZIONE e RIENTRO: la riga d'ordine che ha usato (o restituito) i pezzi.
+  rigaId     String?
+  riga       RigaOrdine?      @relation(fields: [rigaId], references: [id])
+  data       DateTime         @default(now())
+  note       String?
+  utenteId   String?
+  utente     User?            @relation(fields: [utenteId], references: [id])
+
+  @@index([varianteId])
+  @@index([rigaId])
+}
+
+enum CausaleMovimento {
+  CARICO_INIZIALE // importato dal vecchio Excel
+  ARRIVO // "Arrivata merce"
+  CORREZIONE // "Correggi quantita'" dopo un conteggio
+  LAVORAZIONE // pezzi usati da un ordine (prodotto passato "In lavorazione")
+  RIENTRO // pezzi tornati in magazzino (prodotto tornato indietro o annullato)
+}

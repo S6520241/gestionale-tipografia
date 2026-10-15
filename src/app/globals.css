@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/*
+ * Colori del tema (stile shadcn/ui): si cambiano qui e valgono ovunque.
+ * Il colore principale è un viola-indaco; gli stati hanno i loro colori
+ * (vedi src/ordini/regole.ts per quale colore ha ogni stato, e Badge in
+ * src/comune/componenti.tsx per le classi di ogni colore).
+ * I colori sono in "oklch": luminosità, intensità e tinta (0-360).
+ */
+:root {
+  --background: oklch(0.975 0.008 275);
+  --foreground: oklch(0.22 0.03 275);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 275);
+  --primary: oklch(0.52 0.21 278);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.02 278);
+  --secondary-foreground: oklch(0.35 0.12 278);
+  --muted: oklch(0.955 0.01 275);
+  --muted-foreground: oklch(0.52 0.03 275);
+  --accent: oklch(0.95 0.025 278);
+  --accent-foreground: oklch(0.3 0.1 278);
+  --destructive: oklch(0.58 0.22 25);
+  --success: oklch(0.6 0.16 155);
+  --border: oklch(0.91 0.015 275);
+  --input: oklch(0.86 0.02 275);
+  --ring: oklch(0.6 0.18 278);
+  --radius: 0.9rem;
+}
+
+/* Qui si dice a Tailwind che "bg-primary", "text-muted-foreground" ecc. usano le variabili sopra. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/* Stili di base per tutta la pagina. */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Il triangolino di <details> lo disegniamo noi dove serve. */
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}

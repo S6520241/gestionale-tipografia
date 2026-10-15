@@ -1,0 +1,29 @@
+# dipendenze e build
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# segreti: mai su Git (c'è .env.example come modello)
+.env
+.env.*
+!.env.example
+
+# dati reali dell'azienda: restano solo sul PC
+# (nel repo c'è prisma/inventario-esempio.json)
+prisma/inventario-iniziale.json
+
+# file di lavoro e bozze
+*.bak
+*.orig
+
+# sistema ed editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+npm-debug.log*

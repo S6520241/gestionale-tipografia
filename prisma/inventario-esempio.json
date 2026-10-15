@@ -1,0 +1,277 @@
+[
+  {
+    "nome": "T-shirt cotone uomo",
+    "categoria": "T-shirt e polo",
+    "tipo": "ABBIGLIAMENTO",
+    "varianti": [
+      {
+        "colore": "Bianco",
+        "taglia": "S",
+        "quantita": 23
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "M",
+        "quantita": 30
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "L",
+        "quantita": 37
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "XL",
+        "quantita": 44
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "XXL",
+        "quantita": 51
+      },
+      {
+        "colore": "Nero",
+        "taglia": "S",
+        "quantita": 46
+      },
+      {
+        "colore": "Nero",
+        "taglia": "M",
+        "quantita": 53
+      },
+      {
+        "colore": "Nero",
+        "taglia": "L",
+        "quantita": 0
+      },
+      {
+        "colore": "Nero",
+        "taglia": "XL",
+        "quantita": 7
+      },
+      {
+        "colore": "Nero",
+        "taglia": "XXL",
+        "quantita": 14
+      },
+      {
+        "colore": "Royal",
+        "taglia": "S",
+        "quantita": 9
+      },
+      {
+        "colore": "Royal",
+        "taglia": "M",
+        "quantita": 16
+      },
+      {
+        "colore": "Royal",
+        "taglia": "L",
+        "quantita": 23
+      },
+      {
+        "colore": "Royal",
+        "taglia": "XL",
+        "quantita": 30
+      },
+      {
+        "colore": "Royal",
+        "taglia": "XXL",
+        "quantita": 37
+      }
+    ]
+  },
+  {
+    "nome": "Polo piquet",
+    "categoria": "T-shirt e polo",
+    "tipo": "ABBIGLIAMENTO",
+    "varianti": [
+      {
+        "colore": "Bianco",
+        "taglia": "S",
+        "quantita": 17
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "M",
+        "quantita": 24
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "L",
+        "quantita": 31
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "XL",
+        "quantita": 38
+      },
+      {
+        "colore": "Bianco",
+        "taglia": "XXL",
+        "quantita": 45
+      },
+      {
+        "colore": "Navy",
+        "taglia": "S",
+        "quantita": 34
+      },
+      {
+        "colore": "Navy",
+        "taglia": "M",
+        "quantita": 41
+      },
+      {
+        "colore": "Navy",
+        "taglia": "L",
+        "quantita": 48
+      },
+      {
+        "colore": "Navy",
+        "taglia": "XL",
+        "quantita": 55
+      },
+      {
+        "colore": "Navy",
+        "taglia": "XXL",
+        "quantita": 2
+      }
+    ]
+  },
+  {
+    "nome": "Felpa con cappuccio",
+    "categoria": "Felpe e pile",
+    "tipo": "ABBIGLIAMENTO",
+    "varianti": [
+      {
+        "colore": "Grigio",
+        "taglia": "S",
+        "quantita": 11
+      },
+      {
+        "colore": "Grigio",
+        "taglia": "M",
+        "quantita": 18
+      },
+      {
+        "colore": "Grigio",
+        "taglia": "L",
+        "quantita": 25
+      },
+      {
+        "colore": "Grigio",
+        "taglia": "XL",
+        "quantita": 32
+      },
+      {
+        "colore": "Grigio",
+        "taglia": "XXL",
+        "quantita": 39
+      },
+      {
+        "colore": "Nero",
+        "taglia": "S",
+        "quantita": 22
+      },
+      {
+        "colore": "Nero",
+        "taglia": "M",
+        "quantita": 29
+      },
+      {
+        "colore": "Nero",
+        "taglia": "L",
+        "quantita": 36
+      },
+      {
+        "colore": "Nero",
+        "taglia": "XL",
+        "quantita": 43
+      },
+      {
+        "colore": "Nero",
+        "taglia": "XXL",
+        "quantita": 50
+      }
+    ]
+  },
+  {
+    "nome": "Felpa bambino",
+    "categoria": "Bambino",
+    "tipo": "ABBIGLIAMENTO",
+    "varianti": [
+      {
+        "colore": "Rosso",
+        "taglia": "3/4",
+        "quantita": 6
+      },
+      {
+        "colore": "Rosso",
+        "taglia": "5/6",
+        "quantita": 0
+      },
+      {
+        "colore": "Rosso",
+        "taglia": "7/8",
+        "quantita": 12
+      },
+      {
+        "colore": "Rosso",
+        "taglia": "9/11",
+        "quantita": 4
+      }
+    ]
+  },
+  {
+    "nome": "Grembiule da cucina",
+    "categoria": "Grembiuli e pettorine",
+    "tipo": "ABBIGLIAMENTO",
+    "note": "Taglia unica",
+    "varianti": [
+      {
+        "colore": "Nero",
+        "taglia": "",
+        "quantita": 40
+      },
+      {
+        "colore": "Bordeaux",
+        "taglia": "",
+        "quantita": 15
+      }
+    ]
+  },
+  {
+    "nome": "Penna a scatto",
+    "categoria": "Gadget",
+    "tipo": "GADGET",
+    "varianti": [
+      {
+        "colore": "Bianco",
+        "taglia": "",
+        "quantita": 300
+      },
+      {
+        "colore": "Blu",
+        "taglia": "",
+        "quantita": 150
+      },
+      {
+        "colore": "Rosso",
+        "taglia": "",
+        "quantita": 0
+      }
+    ]
+  },
+  {
+    "nome": "Shopper in cotone",
+    "categoria": "Gadget",
+    "tipo": "GADGET",
+    "varianti": [
+      {
+        "colore": "Naturale",
+        "taglia": "",
+        "quantita": 120
+      }
+    ]
+  }
+]
